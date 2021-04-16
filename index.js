@@ -3,19 +3,22 @@ const express = require('express');
 const generateUniqueId = require('generate-unique-id');
 const fs = require('fs');
 
+
 const app = express();
 app.use(express.json());
 
 
-const users = [];
+let users = [];
 
 
-const readUsersFromJason = () => {
-  fs.readFile('./users.json', (err, data) => {
+const readUsersFromJason = async () => {
+  let users;
+  fs.readFile('./users.json', async (err, data) => {
     if (err) throw err;
-    let users = JSON.parse(data);
-    console.log(users);
+    users = await JSON.parse(data);
+    console.log(1);
   })
+
 };
 
 
@@ -27,14 +30,18 @@ const writeUsersToJason = (data) => {
 };
 
 
-const validateUser = (name) => {
-  const schema = {
-    name: Joi.string().min(3).required(),
+const validateUser = () => {
+  const schema =  Joi.object({
     cash: Joi.number(),
     credit: Joi.number(),
-  };
-  return Joi.validate(name, schema);
+  });
+  return schema.validate({});
 }
+
+
+app.get('/api/bankUsers', (req, res) => {
+  res.send(users);
+});
 
 
 app.post('/api/bankUsers', (req, res) => {
@@ -46,14 +53,38 @@ app.post('/api/bankUsers', (req, res) => {
 
   const user = {
     id: generateUniqueId(),
-    name: req.body.name,
     cash: myCash,
     credit: myCredit,
   };
 
   users.push(user);
   res.send(user);
-  writeUsersToJason(users)
+  console.log(users);
+  // writeUsersToJason(JSON.stringify(users))
+});
+
+
+app.put('/api/bankUsers/:id', (req, res) => {
+  const bankUser = users.find(u => u.id === req.params.id);
+  if (!bankUser) return res.status(404).send('The user with the given ID was not found.');
+
+  const { error } = validateUser(req.body); 
+  if (error) return res.status(400).send(error.details[0].message);
+  
+  let myCash = req.body.cash > (bankUser.credit * -1) ?  req.body.cash : bankUser.cash ;
+  let myCredit = req.body.credit > 0 ? req.body.credit : bankUser.credit; 
+  
+  bankUser.credit = myCredit;
+  bankUser.cahs = myCash; 
+  res.send(bankUser);
+});
+
+
+app.get('/api/bankUsers/:id', (req, res) => {
+  const bankUser = users.find(u => u.id === req.params.id);
+  if (!bankUser) return res.status(404).send('The user with the given ID was not found.');
+
+  res.send(bankUser);
 });
 
 
